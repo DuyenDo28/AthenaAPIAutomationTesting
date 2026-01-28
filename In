@@ -1,0 +1,3 @@
+// query de lay alloc and placement intraday
+EXEC dbo.ssp_get_intraday_orders_alloc_canonical 0;
+exec ssp_get_intraday_orders_placement_canonical 0
