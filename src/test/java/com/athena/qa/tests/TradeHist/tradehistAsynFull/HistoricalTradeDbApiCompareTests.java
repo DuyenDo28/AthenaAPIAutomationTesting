@@ -79,17 +79,31 @@ public class HistoricalTradeDbApiCompareTests extends BaseApiTest {
         // =====================================================
         // 🔍 DEBUG: PRINT RAW API vs DB (before compare)
         // =====================================================
-        System.out.println("\n================ DEBUG API vs DB =================");
+// 🔍 DEBUG: PRINT FULL API vs DB (ALL COMPARED KEYS)
+// =====================================================
+        System.out.println("\n================ DEBUG API vs DB (FULL) =================");
 
         for (Map<String, Object> apiRow : apiTrades) {
 
-            Object apiClOrdId = apiRow.get("clOrdID");
+            Object apiClOrdId = null;
+            for (String k : apiRow.keySet()) {
+                if ("clordid".equalsIgnoreCase(k)) {
+                    apiClOrdId = apiRow.get(k);
+                    break;
+                }
+            }
+
             if (apiClOrdId == null) continue;
 
-            Map<String, Object> dbRow = dbRows.stream()
-                    .filter(r -> apiClOrdId.equals(r.get("ClOrdID")))
-                    .findFirst()
-                    .orElse(null);
+            Map<String, Object> dbRow = null;
+
+            for (Map<String, Object> r : dbRows) {
+                if (apiClOrdId.equals(r.get("ClOrdID"))) {
+                    dbRow = r;
+                    break;
+                }
+            }
+
 
             if (dbRow == null) {
                 System.out.println("❌ DB NOT FOUND for ClOrdID=" + apiClOrdId);
@@ -98,27 +112,39 @@ public class HistoricalTradeDbApiCompareTests extends BaseApiTest {
 
             System.out.println("\n--- TRADE ClOrdID = " + apiClOrdId + " ---");
 
-            System.out.println("API.targetQty = " + apiRow.get("targetQty")
-                    + " | DB.OrderQuantity = " + dbRow.get("OrderQuantity"));
+            for (Map.Entry<String, String> e
+                    : HistoricalTradeCompareEngine.API_TO_DB.entrySet()) {
 
-            System.out.println("API.filledQty = " + apiRow.get("filledQty")
-                    + " | DB.FilledQty = " + dbRow.get("FilledQty"));
+                String apiKey = e.getKey();
+                String dbKey = e.getValue();
 
-            System.out.println("API.avgPrice  = " + apiRow.get("avgPrice")
-                    + " | DB.FilledValue = " + dbRow.get("FilledValue"));
+                Object apiVal = null;
+                for (String k : apiRow.keySet()) {
+                    if (k != null && k.equalsIgnoreCase(apiKey)) {
+                        apiVal = apiRow.get(k);
+                        break;
+                    }
+                }
 
-            Object apiAvg = apiRow.get("avgPrice");
-            Object dbAvg = dbRow.get("FilledValue");
+                Object dbVal = dbRow.get(dbKey);
 
-            if (apiAvg != null && dbAvg != null) {
-                System.out.println("TYPE avgPrice: API="
-                        + apiAvg.getClass().getSimpleName()
-                        + " | DB="
-                        + dbAvg.getClass().getSimpleName());
+                if (apiVal == null && dbVal == null) continue;
+
+                System.out.println(
+                        "API." + apiKey + " = " + apiVal
+                                + " | DB." + dbKey + " = " + dbVal
+                                + (apiVal != null && dbVal != null
+                                ? " | TYPE API="
+                                + apiVal.getClass().getSimpleName()
+                                + " DB="
+                                + dbVal.getClass().getSimpleName()
+                                : "")
+                );
             }
         }
 
         System.out.println("\n================ END DEBUG =================\n");
+
 
         // =====================================================
         // 4️⃣ COMPARE (TRADE ONLY)

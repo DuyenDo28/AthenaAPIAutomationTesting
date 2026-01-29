@@ -58,7 +58,12 @@
             <version>12.6.3.jre11</version>
         </dependency>
 
-
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <version>1.10.2</version>
+            <scope>test</scope>
+        </dependency>
 
 
     </dependencies>

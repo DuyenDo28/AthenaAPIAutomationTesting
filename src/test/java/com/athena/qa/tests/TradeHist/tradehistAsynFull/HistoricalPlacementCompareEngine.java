@@ -12,7 +12,7 @@ public class HistoricalPlacementCompareEngine extends BaseCompareEngine {
     /**
      * API placement field (lowercase) -> DB column
      */
-    private static final Map<String, String> API_TO_DB = new LinkedHashMap<>();
+    public static final Map<String, String> API_TO_DB = new LinkedHashMap<>();
 
     static {
         API_TO_DB.put("orderid", "OrderID");

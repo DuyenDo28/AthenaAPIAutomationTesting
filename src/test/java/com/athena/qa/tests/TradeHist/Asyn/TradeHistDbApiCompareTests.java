@@ -1,4 +1,4 @@
-package com.athena.qa.tests.TradeHist;
+package com.athena.qa.tests.TradeHist.Asyn;
 
 import com.athena.qa.framework.client.TradeHistApiClient;
 import com.athena.qa.framework.client.TradeHistDbClient;

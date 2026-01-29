@@ -9,7 +9,7 @@ import java.util.*;
 
 public class HistoricalTradeCompareEngine extends BaseCompareEngine {
 
-    private static final Map<String, String> API_TO_DB = new LinkedHashMap<>();
+    public static final Map<String, String> API_TO_DB = new LinkedHashMap<>();
 
     static {
         API_TO_DB.put("id", "ID");

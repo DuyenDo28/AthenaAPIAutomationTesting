@@ -2,14 +2,11 @@ package com.athena.qa.tests.TradeHist.tradehistAsynFull;
 
 import com.athena.qa.framework.client.TradePlacementDbClient;
 import com.athena.qa.tests.base.BaseApiTest;
-import com.athena.qa.tests.compare.tradeplacement.CanonicalPlacement;
 import com.athena.qa.tests.trade.TradeCompareEngine;
 import io.restassured.response.Response;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -83,13 +80,14 @@ public class HistoricalPlacementDbApiCompareTests extends BaseApiTest {
         writeJson("out/hist_plc_db_raw.json", dbRows);
 
         // =====================================================
-        // 4️⃣ API → canonical map
+        // 🔍 DEBUG: API vs DB (PLACEMENT – SAME STYLE AS TRADE)
         // =====================================================
-        Map<String, CanonicalPlacement> apiMap = new HashMap<>();
+        System.out.println(
+                "\n================ DEBUG HIST PLACEMENT API vs DB =================");
 
         for (Map<String, Object> trade : trades) {
 
-            String tradeClOrdID = s(trade.get("clOrdID"));
+            Object tradeClOrdId = trade.get("clOrdID");
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> placements =
@@ -97,53 +95,62 @@ public class HistoricalPlacementDbApiCompareTests extends BaseApiTest {
 
             if (placements == null) continue;
 
-            for (Map<String, Object> p : placements) {
+            for (Map<String, Object> apiPlc : placements) {
 
-                CanonicalPlacement c = new CanonicalPlacement();
-                c.tradeClOrdID = tradeClOrdID;
-                c.placementClOrdID = s(p.get("clOrdID"));
+                Object plcClOrdId = apiPlc.get("clOrdID");
+                if (plcClOrdId == null) continue;
 
-                c.brokerId = s(p.get("brokerCode"));
-                c.orderID = s(p.get("orderID"));
-                c.status = s(p.get("status"));
-                c.instruction = s(p.get("instruction"));
+                Map<String, Object> dbRow = null;
+                for (Map<String, Object> r : dbRows) {
+                    if (tradeClOrdId.equals(r.get("tradeClOrdID"))
+                            && plcClOrdId.equals(r.get("placementClOrdID"))) {
+                        dbRow = r;
+                        break;
+                    }
+                }
 
-                c.quantity = bd(p.get("quantity"));
-                c.filledQty = bd(p.get("filledQty"));
-                c.filledValue = bd(p.get("filledValue"));
-                c.limitPrice = bd(p.get("limitPrice"));
+                if (dbRow == null) {
+                    System.out.println("❌ DB NOT FOUND for "
+                            + tradeClOrdId + "|" + plcClOrdId);
+                    continue;
+                }
 
-                apiMap.put(c.key(), c);
+                System.out.println("\n--- PLACEMENT "
+                        + tradeClOrdId + "|" + plcClOrdId + " ---");
+
+                for (Map.Entry<String, String> e
+                        : HistoricalPlacementCompareEngine.API_TO_DB.entrySet()) {
+
+                    String apiKey = e.getKey();
+                    String dbKey = e.getValue();
+
+                    Object apiVal = null;
+                    for (String k : apiPlc.keySet()) {
+                        if (k != null && k.equalsIgnoreCase(apiKey)) {
+                            apiVal = apiPlc.get(k);
+                            break;
+                        }
+                    }
+
+                    Object dbVal = dbRow.get(dbKey);
+
+                    if (apiVal == null && dbVal == null) continue;
+
+                    System.out.println(
+                            "API." + apiKey + " = " + apiVal
+                                    + " | DB." + dbKey + " = " + dbVal
+                                    + (apiVal != null && dbVal != null
+                                    ? " | TYPE API="
+                                    + apiVal.getClass().getSimpleName()
+                                    + " DB="
+                                    + dbVal.getClass().getSimpleName()
+                                    : "")
+                    );
+                }
             }
         }
 
-        writeJson("out/hist_plc_api_canonical.json", apiMap);
-
-        // =====================================================
-        // 5️⃣ DB → canonical map
-        // =====================================================
-        Map<String, CanonicalPlacement> dbMap = new HashMap<>();
-
-        for (Map<String, Object> row : dbRows) {
-            CanonicalPlacement c =
-                    CanonicalPlacement.fromDbRow(row);
-            dbMap.put(c.key(), c);
-        }
-
-        writeJson("out/hist_plc_db_canonical.json", dbMap);
-
-        // =====================================================
-        // 🔍 DEBUG LIKE ALLOCATION (IN TEST)
-        // =====================================================
-        System.out.println("\n========== DEBUG HIST PLACEMENT (TEST LEVEL) ==========");
-        for (String key : apiMap.keySet()) {
-            CanonicalPlacement api = apiMap.get(key);
-            CanonicalPlacement db = dbMap.get(key);
-
-            System.out.println("\nKEY = " + key);
-            System.out.println("  API = " + api);
-            System.out.println("  DB  = " + db);
-        }
+        System.out.println("\n================ END DEBUG =================\n");
 
         // =====================================================
         // 6️⃣ COMPARE (ENGINE)
@@ -151,31 +158,15 @@ public class HistoricalPlacementDbApiCompareTests extends BaseApiTest {
         HistoricalPlacementCompareEngine engine =
                 new HistoricalPlacementCompareEngine();
 
-        System.out.println(">>> CALLING HistoricalPlacementCompareEngine.compare()");
-
         TradeCompareEngine.CompareReport report =
                 engine.compare(dbRows, trades);
 
-        System.out.println("<<< FINISHED HistoricalPlacementCompareEngine.compare()");
-
-        // 🔥 GHI FILE TRƯỚC
+        // 🔥 GHI FILE
         writeJson("out/hist_plc_compare_report.json", report);
 
         // =====================================================
         // 7️⃣ ASSERT CUỐI
         // =====================================================
         assertTrue(report.isAllMatch(), report.toString());
-    }
-
-    // =====================================================
-    // helper methods
-    // =====================================================
-    private static BigDecimal bd(Object v) {
-        if (v == null) return BigDecimal.ZERO;
-        return new BigDecimal(v.toString());
-    }
-
-    private static String s(Object v) {
-        return v == null ? "" : v.toString();
     }
 }

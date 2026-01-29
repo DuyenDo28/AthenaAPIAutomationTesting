@@ -2,14 +2,11 @@ package com.athena.qa.tests.TradeHist.tradehistAsynFull;
 
 import com.athena.qa.framework.client.TradeAllocDbClient;
 import com.athena.qa.tests.base.BaseApiTest;
-import com.athena.qa.tests.compare.tradealloc.CanonicalAllocation;
 import com.athena.qa.tests.trade.TradeCompareEngine;
 import io.restassured.response.Response;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -83,73 +80,88 @@ public class HistoricalAllocationDbApiCompareTests extends BaseApiTest {
         writeJson("out/hist_alloc_db_raw.json", dbRows);
 
         // =====================================================
-        // 4️⃣ API → canonical map
+        // 🔍 DEBUG: API vs DB (ALLOCATION – SAME STYLE AS TRADE)
         // =====================================================
-        Map<String, CanonicalAllocation> apiMap = new HashMap<>();
+        System.out.println(
+                "\n================ DEBUG HIST ALLOCATION API vs DB =================");
 
         for (Map<String, Object> trade : trades) {
 
-            String tradeClOrdID = s(trade.get("clOrdID"));
+            Object tradeClOrdId = trade.get("clOrdID");
 
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> allocations =
+            List<Map<String, Object>> allocs =
                     (List<Map<String, Object>>) trade.get("allocations");
 
-            if (allocations == null) continue;
+            if (allocs == null) continue;
 
-            for (Map<String, Object> a : allocations) {
+            for (Map<String, Object> apiAlloc : allocs) {
 
-                CanonicalAllocation c = new CanonicalAllocation();
-                c.tradeClOrdID = tradeClOrdID;
-                c.allocID = s(a.get("allocID"));
-                c.accountId = s(a.get("accountCode"));
+                Object allocId = apiAlloc.get("allocID");
+                if (allocId == null) continue;
 
-                c.quantity = bd(a.get("quantity"));
-                c.filledQty = bd(a.get("filledQty"));
-                c.netMoney = bd(a.get("netMoney"));
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> comm =
-                        (Map<String, Object>) a.get("commissions");
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> fee =
-                        (Map<String, Object>) a.get("fees");
-
-                if (comm != null) {
-                    c.comm1 = bd(comm.get("comm1"));
-                    c.comm2 = bd(comm.get("comm2"));
-                    c.comm3 = bd(comm.get("comm3"));
-                    c.comm4 = bd(comm.get("comm4"));
-                    c.comm5 = bd(comm.get("comm5"));
+                Map<String, Object> dbRow = null;
+                for (Map<String, Object> r : dbRows) {
+                    if (allocId.equals(r.get("AllocID"))) {
+                        dbRow = r;
+                        break;
+                    }
                 }
 
-                if (fee != null) {
-                    c.fee1 = bd(fee.get("fee1"));
-                    c.fee2 = bd(fee.get("fee2"));
-                    c.fee3 = bd(fee.get("fee3"));
-                    c.fee4 = bd(fee.get("fee4"));
-                    c.fee5 = bd(fee.get("fee5"));
+                if (dbRow == null) {
+                    System.out.println("❌ DB NOT FOUND for AllocID=" + allocId);
+                    continue;
                 }
 
-                apiMap.put(c.key(), c);
+                System.out.println("\n--- ALLOCATION AllocID = " + allocId + " ---");
+
+                for (Map.Entry<String, String> e
+                        : HistoricalAllocationCompareEngine.API_TO_DB.entrySet()) {
+
+                    String apiKey = e.getKey();
+                    String dbKey = e.getValue();
+
+                    Object apiVal;
+
+                    if (apiKey.startsWith("comm")) {
+                        Map<String, Object> comm =
+                                (Map<String, Object>) apiAlloc.get("commissions");
+                        apiVal = comm != null ? comm.get(apiKey) : null;
+
+                    } else if (apiKey.startsWith("fee")) {
+                        Map<String, Object> fee =
+                                (Map<String, Object>) apiAlloc.get("fees");
+                        apiVal = fee != null ? fee.get(apiKey) : null;
+
+                    } else {
+                        apiVal = null;
+                        for (String k : apiAlloc.keySet()) {
+                            if (k != null && k.equalsIgnoreCase(apiKey)) {
+                                apiVal = apiAlloc.get(k);
+                                break;
+                            }
+                        }
+                    }
+
+                    Object dbVal = dbRow.get(dbKey);
+
+                    if (apiVal == null && dbVal == null) continue;
+
+                    System.out.println(
+                            "API." + apiKey + " = " + apiVal
+                                    + " | DB." + dbKey + " = " + dbVal
+                                    + (apiVal != null && dbVal != null
+                                    ? " | TYPE API="
+                                    + apiVal.getClass().getSimpleName()
+                                    + " DB="
+                                    + dbVal.getClass().getSimpleName()
+                                    : "")
+                    );
+                }
             }
         }
 
-        writeJson("out/hist_alloc_api_canonical.json", apiMap);
-
-        // =====================================================
-        // 5️⃣ DB → canonical map
-        // =====================================================
-        Map<String, CanonicalAllocation> dbMap = new HashMap<>();
-
-        for (Map<String, Object> row : dbRows) {
-            CanonicalAllocation c =
-                    CanonicalAllocation.fromDbRow(row);
-            dbMap.put(c.key(), c);
-        }
-
-        writeJson("out/hist_alloc_db_canonical.json", dbMap);
+        System.out.println("\n================ END DEBUG =================\n");
 
         // =====================================================
         // 6️⃣ COMPARE (HISTORICAL ENGINE)
@@ -157,31 +169,15 @@ public class HistoricalAllocationDbApiCompareTests extends BaseApiTest {
         HistoricalAllocationCompareEngine engine =
                 new HistoricalAllocationCompareEngine();
 
-        System.out.println(">>> CALLING HistoricalAllocationCompareEngine.compare()");
-
         TradeCompareEngine.CompareReport report =
                 engine.compare(dbRows, trades);
 
-        System.out.println("<<< FINISHED HistoricalAllocationCompareEngine.compare()");
-
-        // 🔥 GHI FILE TRƯỚC (LUÔN CHẠY)
+        // 🔥 GHI FILE
         writeJson("out/hist_alloc_compare_report.json", report);
 
         // =====================================================
         // 7️⃣ ASSERT CUỐI
         // =====================================================
         assertTrue(report.isAllMatch(), report.toString());
-    }
-
-    // =====================================================
-    // helper methods
-    // =====================================================
-    private static BigDecimal bd(Object v) {
-        if (v == null) return BigDecimal.ZERO;
-        return new BigDecimal(v.toString());
-    }
-
-    private static String s(Object v) {
-        return v == null ? "" : v.toString();
     }
 }
