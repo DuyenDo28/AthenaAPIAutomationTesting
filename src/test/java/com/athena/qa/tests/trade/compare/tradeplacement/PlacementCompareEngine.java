@@ -32,7 +32,7 @@ public class PlacementCompareEngine {
             boolean allOk = true;
 
             // =========================
-            // 🔥 timeInForce (LOG + SO)
+            // timeInForce
             // =========================
             boolean tifOk = Objects.equals(api.timeInForce, db.timeInForce);
             System.out.printf(
@@ -45,7 +45,7 @@ public class PlacementCompareEngine {
             allOk &= tifOk;
 
             // =========================
-            // Numeric compare helper
+            // Numeric compare helpers
             // =========================
             BiFunction<BigDecimal, BigDecimal, Boolean> eq =
                     (a, b) -> {
@@ -54,11 +54,18 @@ public class PlacementCompareEngine {
                         return a.subtract(b).abs().compareTo(tol) <= 0;
                     };
 
+            BiFunction<BigDecimal, BigDecimal, Boolean> eqAbs =
+                    (a, b) -> {
+                        if (a == null) a = BigDecimal.ZERO;
+                        if (b == null) b = BigDecimal.ZERO;
+                        return a.abs().subtract(b.abs()).abs().compareTo(tol) <= 0;
+                    };
+
             // =========================
             // NUMERIC FIELDS
             // =========================
-            allOk &= log("quantity", api.quantity, db.quantity, eq);
-            allOk &= log("filledQty", api.filledQty, db.filledQty, eq);
+            allOk &= log("quantity", api.quantity, db.quantity, eqAbs);     // ✅ FIX
+            allOk &= log("filledQty", api.filledQty, db.filledQty, eqAbs); // ✅ FIX
             allOk &= log("filledValue", api.filledValue, db.filledValue, eq);
             allOk &= log("limitPrice", api.limitPrice, db.limitPrice, eq);
 

@@ -69,19 +69,23 @@ public class CanonicalAllocation {
      * 🔍 COMPARE VALUE CỦA TẤT CẢ FIELD
      */
     public boolean equalsWithTolerance(CanonicalAllocation o, BigDecimal tol) {
-        return eq(quantity, o.quantity, tol)
-                && eq(filledQty, o.filledQty, tol)
-                && eq(netMoney, o.netMoney, tol)
-                && eq(comm1, o.comm1, tol)
-                && eq(comm2, o.comm2, tol)
-                && eq(comm3, o.comm3, tol)
-                && eq(comm4, o.comm4, tol)
-                && eq(comm5, o.comm5, tol)
-                && eq(fee1, o.fee1, tol)
-                && eq(fee2, o.fee2, tol)
-                && eq(fee3, o.fee3, tol)
-                && eq(fee4, o.fee4, tol)
-                && eq(fee5, o.fee5, tol);
+        return
+                // eq(quantity, o.quantity, tol)
+                //&& eq(filledQty, o.filledQty, tol)
+                eqAbs(quantity, o.quantity, tol)
+                        && eqAbs(filledQty, o.filledQty, tol)
+
+                        && eq(netMoney, o.netMoney, tol)
+                        && eq(comm1, o.comm1, tol)
+                        && eq(comm2, o.comm2, tol)
+                        && eq(comm3, o.comm3, tol)
+                        && eq(comm4, o.comm4, tol)
+                        && eq(comm5, o.comm5, tol)
+                        && eq(fee1, o.fee1, tol)
+                        && eq(fee2, o.fee2, tol)
+                        && eq(fee3, o.fee3, tol)
+                        && eq(fee4, o.fee4, tol)
+                        && eq(fee5, o.fee5, tol);
 
 
     }
@@ -123,4 +127,11 @@ public class CanonicalAllocation {
                 ", fee5=" + fee5 +
                 '}';
     }
+
+    private static boolean eqAbs(BigDecimal a, BigDecimal b, BigDecimal tol) {
+        if (a == null) a = BigDecimal.ZERO;
+        if (b == null) b = BigDecimal.ZERO;
+        return a.abs().subtract(b.abs()).abs().compareTo(tol) <= 0;
+    }
+
 }

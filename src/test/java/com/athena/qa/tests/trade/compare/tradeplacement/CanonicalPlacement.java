@@ -107,6 +107,13 @@ public class CanonicalPlacement {
         return new BigDecimal(v.toString());
     }
 
+    private static boolean eqAbs(BigDecimal a, BigDecimal b, BigDecimal tol) {
+        if (a == null) a = BigDecimal.ZERO;
+        if (b == null) b = BigDecimal.ZERO;
+        return a.abs().subtract(b.abs()).abs().compareTo(tol) <= 0;
+    }
+
+
     private static String s(Object v) {
         return v == null ? "" : v.toString();
     }

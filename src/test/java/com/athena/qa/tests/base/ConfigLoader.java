@@ -17,54 +17,39 @@ public class ConfigLoader {
 
         String baseUrl = p.getProperty("api.baseUrl");
         String client = p.getProperty("api.client");
-        String username = p.getProperty("api.username");
-        String password = p.getProperty("api.password");
+
+        // 🔐 RESOLVE ENV VARIABLES HERE
+        String username = resolveEnv(p.getProperty("api.username"));
+        String password = resolveEnv(p.getProperty("api.password"));
 
         int timeoutSeconds = Integer.parseInt(p.getProperty("api.timeoutSeconds", "60"));
         int maxAttempts = Integer.parseInt(p.getProperty("polling.maxAttempts", "90"));
         long sleepMs = Long.parseLong(p.getProperty("polling.sleepMs", "3000"));
 
-        //  LOAD DATE RANGE
         LocalDate startDate = parseDate(p.getProperty("tradehist.startDate"));
         LocalDate endDate = parseDate(p.getProperty("tradehist.endDate"));
 
         return new ApiConfig(
-                baseUrl, client, username, password,
-                startDate, endDate,
-                maxAttempts, sleepMs,
+                baseUrl,
+                client,
+                username,
+                password,
+                startDate,
+                endDate,
+                maxAttempts,
+                sleepMs,
                 Duration.ofSeconds(timeoutSeconds)
         );
     }
 
-    private static LocalDate parseDate(String s) {
-        if (s == null || s.isBlank()) return null;
-        return LocalDate.parse(s.trim());
-    }
-
-
     public static DbConfig loadDb() {
         Properties p = loadProps();
+
         return new DbConfig(
                 p.getProperty("db.url"),
-                p.getProperty("db.user"),
-                p.getProperty("db.password")
+                resolveEnv(p.getProperty("db.user")),
+                resolveEnv(p.getProperty("db.password"))
         );
-    }
-
-    private static Properties loadProps() {
-        try (InputStream is = ConfigLoader.class.getClassLoader()
-                .getResourceAsStream("application-test.properties")) {
-
-            if (is == null)
-                throw new IllegalStateException("Cannot find application-test.properties in src/test/resources");
-
-            Properties p = new Properties();
-            p.load(is);
-            return p;
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load application-test.properties", e);
-        }
     }
 
     public static TradeMultiConfig loadTradeMulti() {
@@ -92,5 +77,47 @@ public class ConfigLoader {
         );
     }
 
+    private static Properties loadProps() {
+        try (InputStream is = ConfigLoader.class.getClassLoader()
+                .getResourceAsStream("application-test.properties")) {
 
+            if (is == null) {
+                throw new IllegalStateException(
+                        "Cannot find application-test.properties in src/test/resources"
+                );
+            }
+
+            Properties p = new Properties();
+            p.load(is);
+            return p;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load application-test.properties", e);
+        }
+    }
+
+    private static LocalDate parseDate(String s) {
+        if (s == null || s.isBlank()) return null;
+        return LocalDate.parse(s.trim());
+    }
+
+    // 🔐 ENV VARIABLE RESOLVER (QUAN TRỌNG)
+    private static String resolveEnv(String value) {
+        if (value == null) return null;
+
+        value = value.trim();
+
+        // Supports ${ENV_NAME}
+        if (value.startsWith("${") && value.endsWith("}")) {
+            String envKey = value.substring(2, value.length() - 1);
+            String envVal = System.getenv(envKey);
+
+            if (envVal == null || envVal.isBlank()) {
+                throw new RuntimeException("Missing environment variable: " + envKey);
+            }
+            return envVal;
+        }
+
+        return value;
+    }
 }

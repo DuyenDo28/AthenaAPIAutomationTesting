@@ -16,7 +16,20 @@ pipeline {
 
         stage('Run API Tests') {
             steps {
-                bat 'mvn clean test -Dtest=AllApiTestSuite'
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'api-credential',
+                        usernameVariable: 'API_USERNAME',
+                        passwordVariable: 'API_PASSWORD'
+                    ),
+                    usernamePassword(
+                        credentialsId: 'db-credential',
+                        usernameVariable: 'DB_USERNAME',
+                        passwordVariable: 'DB_PASSWORD'
+                    )
+                ]) {
+                    bat 'mvn clean test -Dtest=AllApiTestSuite'
+                }
             }
         }
     }
